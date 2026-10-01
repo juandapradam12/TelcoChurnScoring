@@ -1,162 +1,131 @@
-# Telco Churn Scoring — Clasificación y Priorización Comercial
+# Telco Churn Scoring
 
-**Autor:** Juan Prada · **Fecha:** Abril 2026
+[![CI](https://github.com/juandapradam12/telco-churn-scoring/actions/workflows/ci.yml/badge.svg)](https://github.com/juandapradam12/telco-churn-scoring/actions/workflows/ci.yml)
+
+**Stop calling the wrong customers.**
+
+Most sales teams waste retention budget on random outreach.  
+This project turns telecom churn data into a **ranked sales playbook**—who to retain, who to upsell, and who needs a billing check—so limited visit capacity actually hits risk.
+
+> **Result:** contacting the **top 20%** of the ranked list captures ~**51%** of churners  
+> (**2.5×** better than random).
+
+**Author:** Juan Prada · Dataset: [Telco Customer Churn (Kaggle)](https://www.kaggle.com/blastchar/telco-customer-churn)
 
 ---
 
-## Contexto
+## Why this matters
 
-Proyecto de machine learning aplicado a negocio: predicción de churn (clasificación binaria) sobre un dataset de clientes de telecomunicaciones. El objetivo es generar un scoring de riesgo por cliente que permita priorizar las visitas de la fuerza comercial en campo.
+| Random calling | This ranking |
+|----------------|--------------|
+| Same effort for everyone | Effort follows risk + value + timing |
+| Accuracy looks fine (~73%) while missing churners | Optimized for **recall, lift, and cost** |
+| “Will they churn?” only | Also answers **when** and **what to do** |
 
-El brief original del proyecto se conserva en [`docs/Enunciado_Proyecto_ML.pdf`](docs/Enunciado_Proyecto_ML.pdf).
+With **26.5% churn**, a naive “always No Churn” model looks successful and still saves nobody.  
+This repo is built for the real constraint: **you cannot visit everyone**.
 
 ---
 
-## Estructura del proyecto
+## Proof in one glance
 
+<p align="center">
+  <img src="output/figures/lift_gains.png" alt="Lift and gains curves" width="900" />
+</p>
+
+| If you contact… | Churners captured | vs random |
+|-----------------|------------------:|----------:|
+| Top 10% | ~28% | **2.85×** |
+| Top 20% | ~51% | **2.55×** |
+| Top 30% | ~69% | **2.30×** |
+
+Best classifier (holdout): **RandomForest** — F1 **0.66** · ROC-AUC **0.86** · PR-AUC **0.68** · ECE **0.016**
+
+Survival adds timing: Cox concordance ~**0.83**; month-to-month contracts carry ~**9×** higher hazard.
+
+---
+
+## From score to action (Client A vs B)
+
+| | **Client A** `3750-CKVKH` | **Client B** `9560-BBZXK` |
+|--|--|--|
+| Profile | New fiber, month-to-month | 36 months, two-year contract |
+| 12-month churn risk | **~52%** | **~2%** |
+| Upsell potential | ~€26 / month | ~€52 / month |
+| Playbook | **Retain_HighValue** | **Grow_Upsell** |
+| Reality in data | Did churn | Did not churn |
+
+**A = put out the fire.**  
+**B = don’t waste retention budget—sell more.**
+
+That is the product: not a leaderboard of F1, a **queue your sales team can execute**.
+
+<p align="center">
+  <img src="output/figures/unified_commercial_scoring.png" alt="Unified commercial score distribution" width="900" />
+</p>
+
+---
+
+## What the system does
+
+```text
+Telco customers
+      │
+      ├─ Case 1  Classification   → calibrated churn risk
+      ├─ Case 2  Regression       → upsell € potential
+      ├─ Case 3  Anomalies        → billing rarity alerts
+      └─ Case 4  Survival (KM/Cox)→ risk within 6/12/24 months
+                    │
+                    ▼
+         Unified commercial score + playbooks
+         Retain_HighValue · Grow_Upsell · Investigate_Billing · …
 ```
-telco-churn-scoring/
-├── docs/
-│   └── Enunciado_Proyecto_ML.pdf   # Brief del proyecto
-├── data/
-│   └── telco_churn.csv             # Dataset Telco Customer Churn (Kaggle)
-├── src/
-│   ├── data/
-│   │   └── loader.py               # Carga y validacion de datos
-│   ├── features/
-│   │   └── engineering.py          # Preprocesamiento y feature engineering
-│   ├── models/
-│   │   └── train.py                # Entrenamiento, evaluacion y serializacion
-│   └── visualization/
-│       └── plots.py                # Visualizaciones reutilizables
-├── notebooks/
-│   └── churn_analysis.ipynb        # Notebook narrativo con explicaciones
-├── output/                         # Artefactos generados (no versionados)
-│   ├── models/                     # Modelos serializados (.pkl)
-│   ├── figures/                    # Graficas (.png)
-│   └── reports/                    # Metricas y scoring (.csv)
-├── main.py                         # Pipeline ejecutable end-to-end
-├── requirements.txt
-└── README.md
-```
+
+Built with honest ML hygiene:
+- train / val / test (no tuning on test)
+- probability calibration + cost-based thresholds
+- lift/gains for capacity-aware prioritization
+- CI on every push (`pytest` + pipeline smoke)
 
 ---
 
-## Como ejecutar
-
-### 1. Crear entorno virtual e instalar dependencias
+## Run it
 
 ```bash
-python3.11 -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+python3 main.py
 ```
 
-### 2. Ejecutar el pipeline completo
+2-minute terminal pitch:
 
 ```bash
-python3.11 main.py
+python3 scripts/demo_2min.py
 ```
 
-Genera en `output/`:
-- `models/` — modelos serializados (LogisticRegression, RandomForest, XGBoost)
-- `figures/` — graficas de EDA, curvas ROC, matriz de confusion, SHAP, scoring
-- `reports/model_comparison.csv` — tabla comparativa de metricas (incluye PR-AUC y umbral optimo)
-- `reports/churn_scoring.csv` — ranking de clientes por riesgo de churn
-
-### 3. Ver el analisis narrativo
-
-Con el entorno virtual activado:
+Narrative notebook:
 
 ```bash
-source .venv/bin/activate
 jupyter notebook notebooks/churn_analysis.ipynb
 ```
 
-Si `jupyter` no está en el PATH (instalación con `pip install --user`), añade `~/.local/bin`:
+---
 
-```bash
-export PATH="$HOME/.local/bin:$PATH"
-jupyter notebook notebooks/churn_analysis.ipynb
-# equivalente: ~/.local/bin/jupyter-notebook notebooks/churn_analysis.ipynb
+## Go deeper
+
+| Want… | Open |
+|-------|------|
+| Full docs hub | [`docs/README.md`](docs/README.md) |
+| Methods & validation | [`docs/02_methodology.md`](docs/02_methodology.md) |
+| Metrics & artifacts | [`docs/03_results.md`](docs/03_results.md) |
+| Sales playbooks | [`docs/04_business_playbook.md`](docs/04_business_playbook.md) |
+| Setup / CI / structure | [`docs/05_developer_guide.md`](docs/05_developer_guide.md) |
+
+---
+
+## Suggested GitHub About blurb
+
+```text
+Most sales teams call the wrong customers. This project turns telco data into a ranked playbook—retain, upsell, or investigate—where the top 20% captures ~51% of churners (2.5× random).
 ```
-
-En Cursor: abre `notebooks/churn_analysis.ipynb` como **Jupyter Notebook** (no como texto/JSON). Si aparece el JSON crudo, usa “Open With → Jupyter Notebook” o el icono de notebook en la esquina superior derecha.
-
-Contiene el analisis completo con explicaciones de cada decision tecnica.
-
----
-
-## Modelos comparados
-
-| Modelo | Descripcion |
-|--------|-------------|
-| Logistic Regression | Baseline lineal interpretable |
-| Random Forest | Ensemble de arboles, captura no-linealidades |
-| XGBoost | Gradient boosting, mejor rendimiento en datos tabulares |
-
-**Metrica principal:** F1-Score  
-**Metricas complementarias:** AUC-ROC y PR-AUC (esta ultima mas informativa con desbalanceo de clases)
-
-**Justificacion:** Con un desbalanceo del 26% de churn, la accuracy no es apropiada. El F1 penaliza tanto falsos negativos (clientes que se van sin detectar) como falsos positivos (recursos desperdiciados). El AUC-ROC complementa midiendo la capacidad discriminativa general; el PR-AUC es mas sensible al desbalanceo.
-
-El pipeline aplica **threshold tuning** sobre el conjunto de test: barre umbrales de 0.1 a 0.9 y selecciona el que maximiza F1 para la evaluacion final y el scoring comercial.
-
----
-
-## Output de negocio: Scoring de riesgo
-
-El modelo produce un score (0-1) por cliente, segmentado en tres niveles:
-
-| Nivel | Score | Accion recomendada |
-|-------|-------|-------------------|
-| High | > 0.6 | Visita urgente — oferta de retencion personalizada |
-| Medium | 0.3 – 0.6 | Contacto proactivo — revision de contrato |
-| Low | < 0.3 | Mantenimiento — comunicacion periodica |
-
----
-
-## Tratamiento del desbalanceo de clases
-
-El dataset tiene un 26.5% de churn — desbalanceo moderado pero suficiente para que un modelo naive aprenda a predecir siempre "No Churn" y obtenga 73% de accuracy sin detectar ningun cliente en riesgo.
-
-La estrategia adoptada es **ponderacion de clases**:
-
-- `LogisticRegression` y `RandomForest` usan `class_weight="balanced"`, que calcula automaticamente un peso inversamente proporcional a la frecuencia de cada clase. Con la distribucion del dataset, la clase churn recibe un peso ~2.8x mayor.
-- `XGBoost` usa `scale_pos_weight = n_negativos / n_positivos ≈ 2.83`, que tiene el mismo efecto dentro del framework de gradient boosting.
-
-Esto obliga a los modelos a penalizar mas los falsos negativos (clientes que se van sin ser detectados), que es el error mas costoso desde el punto de vista de negocio.
-
-**Por que no SMOTE u otras tecnicas:**  
-Con un desbalanceo del 26.5% (no extremo), la ponderacion de clases es suficiente y mas interpretable. SMOTE genera muestras sinteticas que pueden introducir ruido con variables categoricas, que son mayoritarias en este dataset.
-
----
-
-## Limitaciones y mejoras futuras
-
-### Limitaciones actuales
-
-- El dataset es de telecomunicaciones. Aplicarlo a otros sectores requiere revalidar el feature engineering.
-- No se modelan efectos temporales ni estacionalidad del churn.
-- El scoring asume que la distribucion de clientes es estable. Se recomienda reentrenamiento periodico.
-- El umbral optimo se calcula sobre el conjunto de test; en produccion conviene validarlo con datos out-of-time o cross-validation.
-
-### Que se haria con mas tiempo
-
-**Sobre los mismos datos:**
-
-- **Optimizacion de hiperparametros:** usando Optuna (busqueda bayesiana) en lugar de grid search, especialmente para XGBoost y Random Forest.
-- **Calibracion de probabilidades:** aplicar Platt scaling o isotonic regression para asegurar que un score de 0.7 signifique realmente un 70% de probabilidad de churn.
-- **SMOTE** u otras tecnicas de resampling si el desbalanceo aumenta en datos reales.
-
-**Con datos temporales:**
-
-- **Survival analysis** (Cox Proportional Hazards, Kaplan-Meier): predecir *cuando* se va el cliente, no solo si.
-- **Features de comportamiento temporal:** variacion de `MonthlyCharges` mes a mes, incidencias de soporte, tendencia de uso.
-- **Validacion temporal correcta:** usar los ultimos N meses como test para evitar data leakage.
-
-**Con datos de negocio adicionales:**
-
-- **Customer Lifetime Value (CLV)** como peso en la funcion de perdida.
-- **Calibracion del umbral por segmento** segun capacidad de visitas y coste de retencion.
-- **Experimentos A/B** para medir el impacto real de las acciones de retencion.
